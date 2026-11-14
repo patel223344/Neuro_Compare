@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neuro_Compare - ML vs Neural Network</title>
+    <!-- Chart.js for Visual Graphs -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            background-color: #f4f7f6;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+        }
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background: #ffffff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        h1 {
+            text-align: center;
+            color: #1e293b;
+            margin-bottom: 10px;
+        }
+        p.subtitle {
+            text-align: center;
+            color: #64748b;
+            margin-bottom: 30px;
+        }
+        .btn-container {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        button {
+            background-color: #2563eb;
+            color: white;
+            border: none;
+            padding: 12px 28px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.3s ease;
+        }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+        .loader {
+            display: none;
+            text-align: center;
+            font-size: 18px;
+            color: #2563eb;
+            margin-top: 15px;
+        }
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .card {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            background-color: #f8fafc;
+        }
+        .card h3 {
+            color: #0f172a;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #cbd5e1;
+            padding-bottom: 5px;
+        }
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+        .metric-value {
+            font-weight: bold;
+            color: #16a34a;
+        }
+        .chart-container {
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Neuro_Compare Dashboard</h1>
+    <p class="subtitle">Compare Traditional Machine Learning vs Neural Networks</p>
+
+    <div class="btn-container">
+        <button onclick="runComparison()">Run Model Comparison</button>
+        <div id="loader" class="loader">Training models & calculating performance... ⏳</div>
+    </div>
+
+    <div id="results" class="results-grid" style="display: none;">
+        <!-- Traditional ML Card -->
+        <div class="card">
+            <h3>Logistic Regression (Traditional ML)</h3>
+            <div class="metric"><span>Accuracy:</span><span id="trad-acc" class="metric-value">-</span></div>
+            <div class="metric"><span>Precision:</span><span id="trad-prec" class="metric-value">-</span></div>
+            <div class="metric"><span>Recall:</span><span id="trad-rec" class="metric-value">-</span></div>
+            <div class="metric"><span>F1-Score:</span><span id="trad-f1" class="metric-value">-</span></div>
+        </div>
+
+        <!-- Neural Network Card -->
+        <div class="card">
+            <h3>MLP (Neural Network)</h3>
+            <div class="metric"><span>Accuracy:</span><span id="nn-acc" class="metric-value">-</span></div>
+            <div class="metric"><span>Precision:</span><span id="nn-prec" class="metric-value">-</span></div>
+            <div class="metric"><span>Recall:</span><span id="nn-rec" class="metric-value">-</span></div>
+            <div class="metric"><span>F1-Score:</span><span id="nn-f1" class="metric-value">-</span></div>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="comparisonChart"></canvas>
+    </div>
+</div>
+
+<script>
+    let chartInstance = null;
+
+    async function runComparison() {
+        document.getElementById('loader').style.display = 'block';
+        document.getElementById('results').style.display = 'none';
+
+        try {
+            const response = await fetch('/compare');
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                const trad = data.comparison_results.Traditional_ML_RandomForest;
+                const nn = data.comparison_results.Neural_Network_MLP;
+
+                // Update Traditional ML UI
+                document.getElementById('trad-acc').innerText = trad.Accuracy + '%';
+                document.getElementById('trad-prec').innerText = trad.Precision + '%';
+                document.getElementById('trad-rec').innerText = trad.Recall + '%';
+                document.getElementById('trad-f1').innerText = trad.F1_Score + '%';
+
+                // Update Neural Network UI
+                document.getElementById('nn-acc').innerText = nn.Accuracy + '%';
+                document.getElementById('nn-prec').innerText = nn.Precision + '%';
+                document.getElementById('nn-rec').innerText = nn.Recall + '%';
+                document.getElementById('nn-f1').innerText = nn.F1_Score + '%';
+
+                document.getElementById('results').style.display = 'grid';
+
+                // Render Visual Chart
+                renderChart(trad, nn);
+            }
+        } catch (error) {
+            alert('Comparison run karne mein dikkat aayi: ' + error);
+        } finally {
+            document.getElementById('loader').style.display = 'none';
+        }
+    }
+
+    function renderChart(trad, nn) {
+        const ctx = document.getElementById('comparisonChart').getContext('2d');
+
+        if (chartInstance) {
+            chartInstance.destroy();
+        }
+
+        chartInstance = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Accuracy', 'Precision', 'Recall', 'F1-Score'],
+                datasets: [
+                    {
+                        label: 'Logistic Regression (Traditional ML)',
+                        data: [trad.Accuracy, trad.Precision, trad.Recall, trad.F1_Score],
+                        backgroundColor: '#3b82f6'
+                    },
+                    {
+                        label: 'MLP (Neural Network)',
+                        data: [nn.Accuracy, nn.Precision, nn.Recall, nn.F1_Score],
+                        backgroundColor: '#10b981'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                }
+            }
+        });
+    }
+</script>
+
+</body>
+</html>
